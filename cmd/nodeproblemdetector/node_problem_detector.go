@@ -19,8 +19,8 @@ package main
 import (
 	"context"
 
+	"github.com/golang/glog"
 	"k8s.io/klog/v2"
-
 	_ "k8s.io/node-problem-detector/cmd/nodeproblemdetector/exporterplugins"
 	_ "k8s.io/node-problem-detector/cmd/nodeproblemdetector/problemdaemonplugins"
 	"k8s.io/node-problem-detector/cmd/options"
@@ -29,6 +29,7 @@ import (
 	"k8s.io/node-problem-detector/pkg/exporters/prometheusexporter"
 	"k8s.io/node-problem-detector/pkg/problemdaemon"
 	"k8s.io/node-problem-detector/pkg/problemdetector"
+	"k8s.io/node-problem-detector/pkg/systemlogmonitor"
 	"k8s.io/node-problem-detector/pkg/types"
 	"k8s.io/node-problem-detector/pkg/version"
 )
@@ -47,6 +48,12 @@ func npdMain(ctx context.Context, npdo *options.NodeProblemDetectorOptions) erro
 	problemDaemons := problemdaemon.NewProblemDaemons(npdo.MonitorConfigPaths)
 	if len(problemDaemons) == 0 {
 		klog.Fatalf("No problem daemon is configured")
+	}
+
+	if c := systemlogmonitor.InitK8sClientOrDie(npdo); c != nil {
+		glog.Info("System Log Monitor K8S client initialized")
+	} else {
+		glog.Error("Failed to initialize System Log Monitor K8S client")
 	}
 
 	// Initialize exporters.

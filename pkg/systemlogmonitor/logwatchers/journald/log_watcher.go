@@ -50,6 +50,7 @@ type journaldWatcher struct {
 
 // NewJournaldWatcher is the create function of journald watcher.
 func NewJournaldWatcher(cfg types.WatcherConfig) types.LogWatcher {
+
 	uptime, err := util.GetUptimeDuration()
 	if err != nil {
 		klog.Fatalf("failed to get uptime: %v", err)

@@ -29,6 +29,7 @@ import (
 	"k8s.io/node-problem-detector/pkg/util/metrics"
 )
 
+
 type diskCollector struct {
 	mIOTime         *metrics.Int64Metric
 	mWeightedIO     *metrics.Int64Metric
@@ -172,7 +173,6 @@ func NewDiskCollectorOrDie(diskConfig *ssmtypes.DiskStatsConfig) *diskCollector 
 	dc.lastWriteBytes = make(map[string]uint64)
 	dc.lastReadTime = make(map[string]uint64)
 	dc.lastWriteTime = make(map[string]uint64)
-
 	return &dc
 }
 
@@ -307,7 +307,6 @@ func (dc *diskCollector) collect() {
 			dc.mPercentUsed.Record(map[string]string{deviceNameLabel: deviceName, fsTypeLabel: fstype, mountOptionLabel: opttypes, stateLabel: "used"}, float64(usageStat.UsedPercent))
 		}
 	}
-
 }
 
 // listRootBlockDevices lists all block devices that's not a slave or holder.

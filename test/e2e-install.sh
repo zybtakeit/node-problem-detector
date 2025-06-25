@@ -47,7 +47,6 @@ function install-npd() {
 
   readonly workdir=$(mktemp -d)
   tar -xf "${TARBALL}" --directory "${workdir}"
-
   echo "Preparing NPD binary directory."
   mkdir -p "${BIN_DIR}"
   mount --bind "${BIN_DIR}" "${BIN_DIR}"
@@ -97,6 +96,5 @@ while getopts "t:" opt; do
   esac
 done
 shift "$((OPTIND-1))"
-
 
 main "${@}"

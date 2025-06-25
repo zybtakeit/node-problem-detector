@@ -75,7 +75,11 @@ func NewExporterOrDie(ctx context.Context, npdo *options.NodeProblemDetectorOpti
 func (ke *k8sExporter) ExportProblems(status *types.Status) {
 	if ke.writeEvents {
 		for _, event := range status.Events {
-			ke.client.Eventf(util.ConvertToAPIEventType(event.Severity), status.Source, event.Reason, event.Message)
+			if util.PodOOMRegex.MatchString(event.Message) {
+				ke.client.PodEventf(util.ConvertToAPIEventType(event.Severity), status.Source, event.Reason, event.Message)
+			} else {
+				ke.client.Eventf(util.ConvertToAPIEventType(event.Severity), status.Source, event.Reason, event.Message)
+			}
 		}
 	}
 	if ke.updateConditions {

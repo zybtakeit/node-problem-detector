@@ -24,9 +24,10 @@
 all: build
 
 # PLATFORMS is the set of OS_ARCH that NPD can build against.
-LINUX_PLATFORMS=linux_amd64 linux_arm64
+LINUX_PLATFORMS?=linux_amd64 linux_arm64
 DOCKER_PLATFORMS=linux/amd64,linux/arm64
-PLATFORMS=$(LINUX_PLATFORMS) windows_amd64
+PLATFORMS=$(LINUX_PLATFORMS)
+#PLATFORMS=$(LINUX_PLATFORMS) windows_amd64
 
 # VERSION is the version of the binary.
 VERSION?=$(shell if [ -d .git ]; then echo `git describe --tags --dirty`; else echo "UNKNOWN"; fi)
@@ -35,7 +36,7 @@ VERSION?=$(shell if [ -d .git ]; then echo `git describe --tags --dirty`; else e
 TAG?=$(VERSION)
 
 # REGISTRY is the container registry to push into.
-REGISTRY?=gcr.io/k8s-staging-npd
+REGISTRY?=registry.cn-hangzhou.aliyuncs.com
 
 # UPLOAD_PATH is the cloud storage path to upload release tar.
 UPLOAD_PATH?=gs://kubernetes-release
@@ -61,17 +62,24 @@ NPD_NAME_VERSION?=node-problem-detector-$(VERSION)
 TARBALL=$(NPD_NAME_VERSION).tar.gz
 
 # IMAGE is the image name of the node problem detector container image.
-IMAGE:=$(REGISTRY)/node-problem-detector:$(TAG)
+IMAGE:=$(REGISTRY)/acs/node-problem-detector:$(TAG)
 
 # ENABLE_JOURNALD enables build journald support or not. Building journald
 # support needs libsystemd-dev or libsystemd-journal-dev.
-ENABLE_JOURNALD?=1
+ENABLE_JOURNALD?=0
 
 ifeq ($(shell go env GOHOSTOS), darwin)
 ENABLE_JOURNALD=0
 else ifeq ($(shell go env GOHOSTOS), windows)
 ENABLE_JOURNALD=0
 endif
+
+# TODO(random-liu): Support different architectures.
+# The debian-base:v1.0.0 image built from kubernetes repository is based on
+# Debian Stretch. It includes systemd 239 with support for both +XZ and +LZ4
+# compression. +LZ4 is needed on some os distros such as COS.
+BASEIMAGE:=centos:centos8
+BUILDER_BASE_IMAGE:=golang:1.17.1-buster
 
 # Disable cgo by default to make the binary statically linked.
 CGO_ENABLED:=0
@@ -112,6 +120,9 @@ else
 	# anything in COPY command.
 	LOGCOUNTER=*dont-include-log-counter
 endif
+ifneq ($(BUILD_TAGS), "")
+	BUILD_TAGS:=-tags "$(BUILD_TAGS)"
+endif
 
 vet:
 	go list -tags "$(HOST_PLATFORM_BUILD_TAGS)" ./... | \
@@ -132,7 +143,8 @@ endif
 
 ALL_BINARIES = $(foreach binary, $(BINARIES) $(BINARIES_LINUX_ONLY), ./$(binary)) \
   $(foreach platform, $(LINUX_PLATFORMS), $(foreach binary, $(BINARIES) $(BINARIES_LINUX_ONLY), output/$(platform)/$(binary))) \
-  $(foreach binary, $(BINARIES), output/windows_amd64/$(binary).exe)
+#  skip windows bin build
+#  $(foreach binary, $(BINARIES), output/windows_amd64/$(binary).exe)
 ALL_TARBALLS = $(foreach platform, $(PLATFORMS), $(NPD_NAME_VERSION)-$(platform).tar.gz)
 
 output/windows_amd64/bin/%.exe: $(PKG_SOURCES)
@@ -150,9 +162,13 @@ output/windows_amd64/test/bin/%.exe: $(PKG_SOURCES)
 		-tags "$(WINDOWS_BUILD_TAGS)" \
 		./e2e/$(subst -,,$*)
 
+# =x86_64-linux-gnu-gcc need yum install gcc-x86_64-linux-gnu.x86_64
+
 output/linux_amd64/bin/%: $(PKG_SOURCES)
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=$(CGO_ENABLED) \
-	  CC=x86_64-linux-gnu-gcc go build \
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=$(CGO_ENABLED) GO111MODULE=on \
+#	  CC=x86_64-linux-gnu-gcc go build \
+	  CC=x86_64-redhat-linux-gcc go build \
+		-mod vendor \
 		-o $@ \
 		-ldflags '-X $(PKG)/pkg/version.version=$(VERSION)' \
 		-tags "$(LINUX_BUILD_TAGS)" \
@@ -160,16 +176,19 @@ output/linux_amd64/bin/%: $(PKG_SOURCES)
 	touch $@
 
 output/linux_amd64/test/bin/%: $(PKG_SOURCES)
-	cd test && \
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=$(CGO_ENABLED) \
-	  CC=x86_64-linux-gnu-gcc go build \
-		-o ../$@ \
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=$(CGO_ENABLED) GO111MODULE=on \
+#	  CC=x86_64-linux-gnu-gcc go build \
+	  CC=x86_64-redhat-linux-gcc go build \
+		-mod vendor \
+		-o $@ \
 		-tags "$(LINUX_BUILD_TAGS)" \
 		./e2e/$(subst -,,$*)
 
 output/linux_arm64/bin/%: $(PKG_SOURCES)
-	GOOS=linux GOARCH=arm64 CGO_ENABLED=$(CGO_ENABLED) \
-	  CC=aarch64-linux-gnu-gcc go build \
+	GOOS=linux GOARCH=arm64 CGO_ENABLED=$(CGO_ENABLED) GO111MODULE=on \
+#	  CC=aarch64-linux-gnu-gcc go build \
+	  CC=aarch64-redhat-linux-gcc go build \
+		-mod vendor \
 		-o $@ \
 		-ldflags '-X $(PKG)/pkg/version.version=$(VERSION)' \
 		-tags "$(LINUX_BUILD_TAGS)" \
@@ -177,10 +196,11 @@ output/linux_arm64/bin/%: $(PKG_SOURCES)
 	touch $@
 
 output/linux_arm64/test/bin/%: $(PKG_SOURCES)
-	cd test && \
-	GOOS=linux GOARCH=arm64 CGO_ENABLED=$(CGO_ENABLED) \
-	  CC=aarch64-linux-gnu-gcc go build \
-		-o ../$@ \
+	GOOS=linux GOARCH=arm64 CGO_ENABLED=$(CGO_ENABLED) GO111MODULE=on \
+#	  CC=aarch64-linux-gnu-gcc go build \
+	  CC=aarch64-redhat-linux-gcc go build \
+		-mod vendor \
+		-o $@ \
 		-tags "$(LINUX_BUILD_TAGS)" \
 		./e2e/$(subst -,,$*)
 
@@ -231,6 +251,7 @@ e2e-test: vet fmt build-tar
 	-boskos-project-type=$(BOSKOS_PROJECT_TYPE) -job-name=$(JOB_NAME) \
 	-artifacts-dir=$(ARTIFACTS)
 
+
 $(NPD_NAME_VERSION)-%.tar.gz: $(ALL_BINARIES) test/e2e-install.sh
 	mkdir -p output/$*/ output/$*/test/
 	cp -r config/ output/$*/
@@ -240,9 +261,14 @@ $(NPD_NAME_VERSION)-%.tar.gz: $(ALL_BINARIES) test/e2e-install.sh
 
 build-binaries: $(ALL_BINARIES)
 
+
 build-container: clean Dockerfile
 	docker buildx create --platform $(DOCKER_PLATFORMS) --use
 	docker buildx build --platform $(DOCKER_PLATFORMS) -t $(IMAGE) --build-arg LOGCOUNTER=$(LOGCOUNTER) .
+
+build-container: build-binaries Dockerfile
+	docker build -t $(IMAGE) --build-arg BASEIMAGE=$(BASEIMAGE) --build-arg LOGCOUNTER=$(LOGCOUNTER) . --progress=plain --no-cache
+
 
 $(TARBALL): ./bin/node-problem-detector ./bin/log-counter ./bin/health-checker ./test/bin/problem-maker
 	tar -zcvf $(TARBALL) bin/ config/ test/e2e-install.sh test/bin/problem-maker
@@ -260,6 +286,9 @@ build-in-docker: clean docker-builder
 	docker run \
 		-v `pwd`:/gopath/src/k8s.io/node-problem-detector/ npd-builder:latest bash \
 		-c 'cd /gopath/src/k8s.io/node-problem-detector/ && make build-binaries'
+
+build-multi-stage: clean
+	docker build -t $(IMAGE) --build-arg BASEIMAGE=$(BASEIMAGE) --build-arg LOGCOUNTER=$(LOGCOUNTER) -f Dockerfile.dind --build-arg BUILDER_BASE_IMAGE=$(BUILDER_BASE_IMAGE) .
 
 push-container: build-container
 	# So we can push to docker hub by setting REGISTRY

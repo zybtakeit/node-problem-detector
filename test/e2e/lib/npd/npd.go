@@ -88,6 +88,7 @@ func FetchNPDMetrics(ins gce.Instance) ([]metrics.Float64MetricRepresentation, e
 	return npdMetrics, nil
 }
 
+
 // FetchNPDMetric fetches and parses a specific metric reported by NPD on the provided GCE instance.
 func FetchNPDMetric(ins gce.Instance, metricName string, labels map[string]string) (float64, error) {
 	gotMetrics, err := FetchNPDMetrics(ins)

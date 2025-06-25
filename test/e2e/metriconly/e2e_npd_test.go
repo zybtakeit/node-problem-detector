@@ -163,6 +163,5 @@ func releaseBoskosResourcesOnNode1() {
 func TestMain(m *testing.M) {
 	RegisterFailHandler(ginkgo.Fail)
 	flag.Parse()
-
 	os.Exit(m.Run())
 }

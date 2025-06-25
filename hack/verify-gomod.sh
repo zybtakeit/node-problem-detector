@@ -14,9 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+hack/verify-gomod.sh
 set -o errexit
 set -o nounset
 set -o pipefail
+builder/Dockerfile
 
 make gomod
 changes=$(git status --porcelain go.mod go.sum vendor/ tests/e2e/go.mod  tests/e2e/go.sum || true)

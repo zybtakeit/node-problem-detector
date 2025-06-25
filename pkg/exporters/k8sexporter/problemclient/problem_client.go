@@ -33,6 +33,8 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
+	"k8s.io/node-problem-detector/pkg/client"
+	"k8s.io/node-problem-detector/pkg/util"
 	"k8s.io/utils/clock"
 
 	"k8s.io/node-problem-detector/cmd/options"
@@ -48,6 +50,7 @@ type Client interface {
 	// Eventf reports the event.
 	Eventf(eventType string, source, reason, messageFmt string, args ...interface{})
 	// GetNode returns the Node object of the node on which the
+	PodEventf(eventType string, source, reason, messageFmt string, args ...interface{})
 	// node-problem-detector runs.
 	GetNode(ctx context.Context) (*v1.Node, error)
 }
@@ -68,7 +71,7 @@ func NewClientOrDie(npdo *options.NodeProblemDetectorOptions) Client {
 	// we have checked it is a valid URI after command line argument is parsed.:)
 	uri, _ := url.Parse(npdo.ApiServerOverride)
 
-	cfg, err := getKubeClientConfig(uri)
+	cfg, err := client.GetKubeClientConfig(uri)
 	if err != nil {
 		panic(err)
 	}
@@ -76,6 +79,12 @@ func NewClientOrDie(npdo *options.NodeProblemDetectorOptions) Client {
 	cfg.UserAgent = fmt.Sprintf("%s/%s", filepath.Base(os.Args[0]), version.Version())
 	cfg.QPS = npdo.QPS
 	cfg.Burst = npdo.Burst
+
+	// warning! this client use protobuf can not used on CRD
+	// https://kubernetes.io/docs/reference/using-api/api-concepts/
+	cfg.AcceptContentTypes = "application/vnd.kubernetes.protobuf,application/json"
+	cfg.ContentType = "application/vnd.kubernetes.protobuf"
+	// TODO(random-liu): Set QPS Limit
 	c.client = clientset.NewForConfigOrDie(cfg).CoreV1()
 	c.nodeName = npdo.NodeName
 	c.eventNamespace = npdo.EventNamespace
@@ -134,6 +143,24 @@ func (c *nodeProblemClient) GetNode(ctx context.Context) (*v1.Node, error) {
 	// To reduce the load on APIServer & etcd, we are serving GET operations from
 	// apiserver cache (the data might be slightly delayed).
 	return c.client.Nodes().Get(ctx, c.nodeName, metav1.GetOptions{ResourceVersion: "0"})
+}
+
+func (c *nodeProblemClient) PodEventf(eventType, source, reason, messageFmt string, args ...interface{}) {
+	recorder, found := c.recorders[source]
+	if !found {
+		recorder = getEventRecorder(c.client, "", c.nodeName, source)
+		c.recorders[source] = recorder
+	}
+	rst := util.PodOOMRegex.FindStringSubmatch(messageFmt)
+
+	podRef := &v1.ObjectReference{
+		Kind:      "Pod",
+		Name:      rst[2],
+		UID:       types.UID(rst[2]),
+		Namespace: rst[3],
+	}
+
+	recorder.Eventf(podRef, eventType, reason, messageFmt, args...)
 }
 
 // generatePatch generates condition patch

@@ -67,7 +67,6 @@ func (p *Plugin) Run() {
 
 	runTicker := time.NewTicker(*p.config.PluginGlobalConfig.InvokeInterval)
 	defer runTicker.Stop()
-
 	// on boot run once
 	select {
 	case <-p.tomb.Stopping():
@@ -75,7 +74,6 @@ func (p *Plugin) Run() {
 	default:
 		p.runRules()
 	}
-
 	// run every InvokeInterval
 	for {
 		select {
@@ -86,7 +84,6 @@ func (p *Plugin) Run() {
 		}
 	}
 }
-
 // run each rule in parallel and wait for them to complete
 func (p *Plugin) runRules() {
 	klog.V(3).Info("Start to run custom plugins")

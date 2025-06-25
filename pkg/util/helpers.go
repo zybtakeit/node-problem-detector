@@ -17,10 +17,17 @@ package util
 
 import (
 	"fmt"
+	"math/rand"
+	"regexp"
+	"runtime"
 	"time"
+
+	"github.com/golang/glog"
 
 	"k8s.io/node-problem-detector/pkg/types"
 )
+
+var PodOOMRegex = regexp.MustCompile(`node:(\S+)\s+pod:(\S+)\s+namespace:(\S+)\s+uuid:(\S+)`)
 
 // GenerateConditionChangeEvent generates an event for condition change.
 func GenerateConditionChangeEvent(t string, status types.ConditionStatus, reason, message string, timestamp time.Time) types.Event {
@@ -28,11 +35,12 @@ func GenerateConditionChangeEvent(t string, status types.ConditionStatus, reason
 	if status == types.True {
 		severity = types.Warn
 	}
+
 	return types.Event{
 		Severity:  severity,
 		Timestamp: timestamp,
 		Reason:    reason,
-		Message:   fmt.Sprintf("Node condition %s is now: %s, reason: %s, message: %q", t, status, reason, message),
+		Message:   fmt.Sprintf("Node condition %s is now: %s, reason: %s, msg: %s", t, status, reason, message),
 	}
 }
 
@@ -64,4 +72,26 @@ func GetStartTime(now time.Time, uptimeDuration time.Duration, lookbackStr strin
 	}
 
 	return startTime, nil
+}
+
+func Recovery() error {
+	if err := recover(); err != nil {
+		var e error
+		switch r := err.(type) {
+		case error:
+			e = r
+		default:
+			e = fmt.Errorf("%v", r)
+		}
+		stack := make([]byte, 2048)
+		length := runtime.Stack(stack, true)
+		glog.Errorf("[%s] %s %s\n", "PANIC RECOVER", e, stack[:length])
+		return e
+	}
+	return nil
+}
+
+func RandomDurationMinute(seedMinutes int64) time.Duration {
+	rand.Seed(time.Now().Unix())
+	return time.Duration(rand.Int63n(seedMinutes) * int64(time.Minute))
 }
