@@ -22,8 +22,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/golang/glog"
-
+	"k8s.io/klog/v2"
 	"k8s.io/node-problem-detector/pkg/types"
 )
 
@@ -85,7 +84,7 @@ func Recovery() error {
 		}
 		stack := make([]byte, 2048)
 		length := runtime.Stack(stack, true)
-		glog.Errorf("[%s] %s %s\n", "PANIC RECOVER", e, stack[:length])
+		klog.Errorf("[%s] %s %s\n", "PANIC RECOVER", e, stack[:length])
 		return e
 	}
 	return nil

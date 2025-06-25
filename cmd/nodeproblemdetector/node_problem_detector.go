@@ -19,7 +19,6 @@ package main
 import (
 	"context"
 
-	"github.com/golang/glog"
 	"k8s.io/klog/v2"
 	_ "k8s.io/node-problem-detector/cmd/nodeproblemdetector/exporterplugins"
 	_ "k8s.io/node-problem-detector/cmd/nodeproblemdetector/problemdaemonplugins"
@@ -51,9 +50,9 @@ func npdMain(ctx context.Context, npdo *options.NodeProblemDetectorOptions) erro
 	}
 
 	if c := systemlogmonitor.InitK8sClientOrDie(npdo); c != nil {
-		glog.Info("System Log Monitor K8S client initialized")
+		klog.Info("System Log Monitor K8S client initialized")
 	} else {
-		glog.Error("Failed to initialize System Log Monitor K8S client")
+		klog.Error("Failed to initialize System Log Monitor K8S client")
 	}
 
 	// Initialize exporters.

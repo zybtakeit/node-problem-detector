@@ -1,8 +1,6 @@
 module k8s.io/node-problem-detector
 
-go 1.24.0
-
-toolchain go1.24.4
+go 1.24.2
 
 require (
 	cloud.google.com/go/compute/metadata v0.7.0
@@ -12,7 +10,6 @@ require (
 	github.com/avast/retry-go/v4 v4.6.1
 	github.com/coreos/go-systemd/v22 v22.5.0
 	github.com/euank/go-kmsg-parser v2.0.0+incompatible
-	github.com/golang/glog v1.2.5
 	github.com/hpcloud/tail v1.0.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/prometheus/client_model v0.6.2
